@@ -1,0 +1,57 @@
+name: Install test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Tap this checkout
+        run: brew tap fcreme/terminalstyles "$GITHUB_WORKSPACE"
+
+      - name: Style and audit
+        run: |
+          brew style fcreme/terminalstyles
+          brew audit --strict --formula fcreme/terminalstyles/terminalstyles
+
+      - name: Install
+        run: brew install fcreme/terminalstyles/terminalstyles
+
+      - name: brew test
+        run: brew test fcreme/terminalstyles/terminalstyles
+
+      - name: Marker and loader path
+        shell: bash
+        run: |
+          set -euo pipefail
+          opt="$(brew --prefix)/opt/terminalstyles/libexec"
+          test "$(tr -d '[:space:]' < "$opt/.package-manager")" = homebrew
+          pwsh -NoProfile -NonInteractive -Command "
+            \$m = Import-Module '$opt/TerminalStyles.psd1' -DisableNameChecking -PassThru
+            \$kind = & \$m { if (Get-Command Get-TerminalStylesInstallKind -ErrorAction SilentlyContinue) { Get-TerminalStylesInstallKind } }
+            if (\$kind -and \$kind -ne 'Homebrew') { throw \"install kind is '\$kind', not Homebrew\" }
+            \"version \$(\$m.Version), install kind: \$(if (\$kind) { \$kind } else { 'n/a (release predates package-manager detection)' })\"
+          "
+
+      - name: Uninstall
+        run: brew uninstall terminalstyles
