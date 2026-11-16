@@ -18,13 +18,22 @@ jobs:
         os: [macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-          fetch-depth: 0
-
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@main
+
+      # setup-homebrew taps this repo at the commit that STARTED the run and
+      # moves it over the workspace. Called from bump.yml, that is the commit
+      # before the bump, so without this step the test installed the previous
+      # release and passed.
+      - name: Put the tap on the commit under test
+        env:
+          REF: ${{ inputs.ref || github.sha }}
+        run: |
+          set -euo pipefail
+          tap="$(brew --repository fcreme/terminalstyles)"
+          git -C "$tap" fetch --quiet origin "$REF"
+          git -C "$tap" checkout --quiet --force FETCH_HEAD
+          git -C "$tap" log --oneline -1
 
       - name: Style and audit
         run: |
@@ -43,10 +52,13 @@ jobs:
           set -euo pipefail
           opt="$(brew --prefix)/opt/terminalstyles/libexec"
           test "$(tr -d '[:space:]' < "$opt/.package-manager")" = homebrew
+          want=$(sed -nE 's|.*/download/v([^/]+)/.*|\1|p' "$(brew --repository fcreme/terminalstyles)/Formula/terminalstyles.rb")
           pwsh -NoProfile -NonInteractive -Command "
             \$m = Import-Module '$opt/TerminalStyles.psd1' -DisableNameChecking -PassThru
+            if (\$m.Version.ToString() -ne '$want') { throw \"installed \$(\$m.Version), but the formula names $want\" }
             \$kind = & \$m { if (Get-Command Get-PackageManagerMarker -ErrorAction SilentlyContinue) { Get-TerminalStylesInstallKind } }
-            if (\$kind -and \$kind -ne 'Homebrew') { throw \"install kind is '\$kind', not Homebrew\" }
+            # 0.9.8 is the first release that reads the marker.
+            if (\$m.Version -gt [version]'0.9.7' -and \$kind -ne 'Homebrew') { throw \"install kind is '\$kind', not Homebrew\" }
             \"version \$(\$m.Version), install kind: \$(if (\$kind) { \$kind } else { 'n/a (release predates package-manager detection)' })\"
           "
 
