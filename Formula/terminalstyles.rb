@@ -1,8 +1,8 @@
 class Terminalstyles < Formula
   desc "Theme your terminal from PowerShell, zsh or bash with live-previewed styles"
   homepage "https://github.com/fcreme/TerminalStyles"
-  url "https://github.com/fcreme/TerminalStyles/releases/download/v0.9.8/TerminalStyles-0.9.8.zip"
-  sha256 "8024865b39e7e84876933cc3775b9a989cd4040016be42838777bd5b6a462b34"
+  url "https://github.com/fcreme/TerminalStyles/releases/download/v0.9.9/TerminalStyles-0.9.9.zip"
+  sha256 "566fe715675c5ab79f9a07322ee1ece2eab762f4bd011bf9f2f3632eb8a03e3b"
   license "MIT"
 
   livecheck do
